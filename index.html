@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bill Splitter</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 20px; background-color: #f9f9f9; }
+    .section { margin-bottom: 20px; }
+    input, select, button { padding: 10px; margin: 5px; font-size: 16px; border-radius: 5px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+
+    /* Media Queries */
+    @media only screen and (max-width: 768px) {
+      body { padding: 15px; }
+      input, select, button { width: 100%; font-size: 14px; }
+      table { font-size: 14px; }
+    }
+
+    @media only screen and (max-width: 480px) {
+      body { padding: 10px; }
+      input, select, button { width: 100%; font-size: 12px; }
+      table { font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Bill Splitter</h1>
+
+  <!-- Dishes Section -->
+  <div class="section" id="dishesSection">
+    <h3>Dishes</h3>
+    <label for="dishName">Dish Name:</label>
+    <input type="text" id="dishName" placeholder="Enter dish name">
+    <label for="dishPrice">Dish Price:</label>
+    <input type="number" id="dishPrice" placeholder="Enter dish price" step="0.01">
+    <button onclick="addDish()">Add Dish</button>
+    <div>
+      <input type="checkbox" id="gstDishes" onclick="toggleGSTDishes()"> Apply 9% GST to Dishes
+      <input type="checkbox" id="serviceDishes" onclick="toggleServiceDishes()"> Apply 10% Service Charge to Dishes
+    </div>
+  </div>
+
+  <!-- Miscellaneous Section -->
+  <div class="section" id="miscSection">
+    <h3>Miscellaneous</h3>
+    <label for="miscName">Item Name:</label>
+    <input type="text" id="miscName" placeholder="Enter item name">
+    <label for="miscPrice">Item Price:</label>
+    <input type="number" id="miscPrice" placeholder="Enter item price" step="0.01">
+    <button onclick="addMisc()">Add Miscellaneous Item</button>
+    <div>
+      <input type="checkbox" id="gstMisc" onclick="toggleGSTMisc()"> Apply 9% GST to Miscellaneous
+      <input type="checkbox" id="serviceMisc" onclick="toggleServiceMisc()"> Apply 10% Service Charge to Miscellaneous
+    </div>
+  </div>
+
+  <h2>Total Bill</h2>
+  <table id="billTable">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Price</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Bill items will be added here -->
+    </tbody>
+  </table>
+
+  <p>Total Dishes Price: <span id="totalDishesPrice">0.00</span></p>
+  <p>Total Miscellaneous Price: <span id="totalMiscPrice">0.00</span></p>
+
+  <p><strong>Grand Total:</strong> <span id="grandTotal">0.00</span></p>
+</body>
+<script>
+  let totalDishes = 0;
+  let totalMiscellaneous = 0;
+  let gstDishes = false;
+  let serviceDishes = false;
+  let gstMisc = false;
+  let serviceMisc = false;
+
+  // Function to add dish and calculate total
+  function addDish() {
+    let dishName = document.getElementById("dishName").value;
+    let dishPrice = parseFloat(document.getElementById("dishPrice").value);
+    
+    if (dishName && !isNaN(dishPrice) && dishPrice > 0) {
+      totalDishes += dishPrice;
+      updateBill();
+      document.getElementById("dishName").value = '';
+      document.getElementById("dishPrice").value = '';
+    }
+  }
+
+  // Function to add miscellaneous item and calculate total
+  function addMisc() {
+    let miscName = document.getElementById("miscName").value;
+    let miscPrice = parseFloat(document.getElementById("miscPrice").value);
+    
+    if (miscName && !isNaN(miscPrice) && miscPrice > 0) {
+      totalMiscellaneous += miscPrice;
+      updateBill();
+      document.getElementById("miscName").value = '';
+      document.getElementById("miscPrice").value = '';
+    }
+  }
+
+  // Toggle GST for dishes
+  function toggleGSTDishes() {
+    gstDishes = document.getElementById("gstDishes").checked;
+    updateBill();
+  }
+
+  // Toggle Service Charge for dishes
+  function toggleServiceDishes() {
+    serviceDishes = document.getElementById("serviceDishes").checked;
+    updateBill();
+  }
+
+  // Toggle GST for miscellaneous
+  function toggleGSTMisc() {
+    gstMisc = document.getElementById("gstMisc").checked;
+    updateBill();
+  }
+
+  // Toggle Service Charge for miscellaneous
+  function toggleServiceMisc() {
+    serviceMisc = document.getElementById("serviceMisc").checked;
+    updateBill();
+  }
+
+  // Update the bill and total calculations
+  function updateBill() {
+    let totalWithGSTServiceDishes = totalDishes;
+    let totalWithGSTServiceMisc = totalMiscellaneous;
+
+    // Apply GST and Service Charge for Dishes
+    if (gstDishes) totalWithGSTServiceDishes += totalDishes * 0.09; // Apply 9% GST
+    if (serviceDishes) totalWithGSTServiceDishes += totalDishes * 0.10; // Apply 10% Service Charge
+
+    // Apply GST and Service Charge for Miscellaneous
+    if (gstMisc) totalWithGSTServiceMisc += totalMiscellaneous * 0.09; // Apply 9% GST
+    if (serviceMisc) totalWithGSTServiceMisc += totalMiscellaneous * 0.10; // Apply 10% Service Charge
+
+    // Calculate Grand Total
+    let grandTotal = totalWithGSTServiceDishes + totalWithGSTServiceMisc;
+
+    // Update the displayed totals
+    document.getElementById("totalDishesPrice").innerText = totalWithGSTServiceDishes.toFixed(2);
+    document.getElementById("totalMiscPrice").innerText = totalWithGSTServiceMisc.toFixed(2);
+    document.getElementById("grandTotal").innerText = grandTotal.toFixed(2);
+
+    // Update Bill Table
+    let table = document.getElementById("billTable").getElementsByTagName('tbody')[0];
+    table.innerHTML = '';  // Clear previous rows
+
+    // Add Dishes rows
+    let row = table.insertRow();
+    row.insertCell(0).innerText = 'Dishes Total';
+    row.insertCell(1).innerText = totalWithGSTServiceDishes.toFixed(2);
+
+    // Add Miscellaneous rows
+    row = table.insertRow();
+    row.insertCell(0).innerText = 'Miscellaneous Total';
+    row.insertCell(1).innerText = totalWithGSTServiceMisc.toFixed(2);
+  }
+</script>
+</html>
