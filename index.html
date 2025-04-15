@@ -4,14 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bill Splitter</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
   <style>
     body { font-family: sans-serif; margin: 0; padding: 20px; background-color: #f9f9f9; }
     .section { margin-bottom: 20px; }
     input, select, button { padding: 10px; margin: 5px; font-size: 16px; border-radius: 5px; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    .bold { font-weight: bold; }
 
-    /* Media Queries */
     @media only screen and (max-width: 768px) {
       body { padding: 15px; }
       input, select, button { width: 100%; font-size: 14px; }
@@ -28,233 +30,261 @@
 <body>
   <h1>Bill Splitter</h1>
 
-  <!-- People Section -->
-  <div class="section" id="peopleSection">
-    <h3>People</h3>
-    <label for="personName">Person's Name:</label>
+  <div class="section">
+    <h3 class="bold">Person's Name</h3>
     <input type="text" id="personName" placeholder="Enter person's name">
     <button onclick="addPerson()">Add Person</button>
     <ul id="peopleList"></ul>
   </div>
 
-  <!-- Dishes Section -->
-  <div class="section" id="dishesSection">
-    <h3>Dishes</h3>
-    <label for="dishName">Dish Name:</label>
-    <input type="text" id="dishName" placeholder="Enter dish name">
-    <label for="dishPrice">Dish Price:</label>
-    <input type="number" id="dishPrice" placeholder="Enter dish price" step="0.01">
-    <button onclick="addDish()">Add Dish</button>
-    <div>
-      <input type="checkbox" id="gstDishes" onclick="toggleGSTDishes()"> Apply 9% GST to Dishes
-      <input type="checkbox" id="serviceDishes" onclick="toggleServiceDishes()"> Apply 10% Service Charge to Dishes
+  <div class="section">
+    <h3 class="bold">Dishes</h3>
+    <input type="text" id="dishDesc" placeholder="Description">
+    <input type="number" id="dishAmount" placeholder="Amount">
+    <select id="dishPerson"></select>
+    <button onclick="addItem('dish')">Add Dish</button><br>
+    <label><input type="checkbox" id="dishGST"> GST (9%)</label>
+    <label><input type="checkbox" id="dishService"> Service Charge (10%)</label>
+    <label><input type="checkbox" id="dishAdditionalToggle"> Additional</label>
+    <input type="number" id="dishAdditional" placeholder="%" style="width:80px;">
+  </div>
+
+  <div class="section">
+    <h3 class="bold">Miscellaneous</h3>
+    <input type="text" id="miscDesc" placeholder="Description">
+    <input type="number" id="miscAmount" placeholder="Amount">
+    <select id="miscPerson"></select>
+    <button onclick="addItem('misc')">Add Miscellaneous</button><br>
+    <label><input type="checkbox" id="miscGST"> GST (9%)</label>
+    <label><input type="checkbox" id="miscService"> Service Charge (10%)</label>
+    <label><input type="checkbox" id="miscAdditionalToggle"> Additional</label>
+    <input type="number" id="miscAdditional" placeholder="%" style="width:80px;">
+  </div>
+
+  <div class="section">
+    <h2 class="bold">Bill Breakdown</h2>
+    <div id="personBreakdowns"></div>
+    <div id="totalsTable" style="display: none;">
+      <table>
+        <thead>
+          <tr><th class="bold">Total Dishes</th><th class="bold">Total Miscellaneous</th><th class="bold">Grand Total</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td id="totalDishes">$0.00</td>
+            <td id="totalMiscellaneous">$0.00</td>
+            <td id="grandTotal">$0.00</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
-  <!-- Miscellaneous Section -->
-  <div class="section" id="miscSection">
-    <h3>Miscellaneous</h3>
-    <label for="miscName">Item Name:</label>
-    <input type="text" id="miscName" placeholder="Enter item name">
-    <label for="miscPrice">Item Price:</label>
-    <input type="number" id="miscPrice" placeholder="Enter item price" step="0.01">
-    <button onclick="addMisc()">Add Miscellaneous Item</button>
-    <div>
-      <input type="checkbox" id="gstMisc" onclick="toggleGSTMisc()"> Apply 9% GST to Miscellaneous
-      <input type="checkbox" id="serviceMisc" onclick="toggleServiceMisc()"> Apply 10% Service Charge to Miscellaneous
-    </div>
+  <div class="section">
+    <button onclick="downloadPDF()">Download PDF</button>
+    <button onclick="resetPage()">Reset Page</button>
   </div>
-
-  <h2>Total Bill</h2>
-  <table id="billTable">
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Price</th>
-      </tr>
-    </thead>
-    <tbody>
-      <!-- Bill items will be added here -->
-    </tbody>
-  </table>
-
-  <p>Total Dishes Price: <span id="totalDishesPrice">0.00</span></p>
-  <p>Total Miscellaneous Price: <span id="totalMiscPrice">0.00</span></p>
-
-  <p><strong>Grand Total:</strong> <span id="grandTotal">0.00</span></p>
-
-  <p><strong>Amount per Person:</strong> <span id="amountPerPerson">0.00</span></p>
-</body>
 <script>
-  let totalDishes = 0;
-  let totalMiscellaneous = 0;
-  let gstDishes = false;
-  let serviceDishes = false;
-  let gstMisc = false;
-  let serviceMisc = false;
-  let people = [];
+  const people = JSON.parse(localStorage.getItem("people")) || [];
+  const items = JSON.parse(localStorage.getItem("items")) || [];
 
-  // Function to add a person to the list
+  window.onload = () => {
+    people.forEach(name => {
+      const li = document.createElement("li");
+      li.innerHTML = `<strong>${name}</strong> <button onclick="removePerson('${name}', this)">Remove</button>`;
+      document.getElementById("peopleList").appendChild(li);
+    });
+    updateDropdowns();
+    updateBill();
+  };
+
+  function saveToLocalStorage() {
+    localStorage.setItem("people", JSON.stringify(people));
+    localStorage.setItem("items", JSON.stringify(items));
+  }
+
   function addPerson() {
-    let personName = document.getElementById("personName").value;
-    
-    if (personName && !people.includes(personName)) {
-      people.push(personName);
-      updatePeopleList();
-      document.getElementById("personName").value = '';
-      updateBill();
+    const name = document.getElementById("personName").value.trim();
+    if (name && !people.includes(name)) {
+      people.push(name);
+      saveToLocalStorage();
+      const li = document.createElement("li");
+      li.innerHTML = `<strong>${name}</strong> <button onclick="removePerson('${name}', this)">Remove</button>`;
+      document.getElementById("peopleList").appendChild(li);
+      updateDropdowns();
+      document.getElementById("personName").value = "";
     }
   }
 
-  // Function to remove a person from the list
-  function removePerson(personName) {
-    people = people.filter(person => person !== personName);
-    updatePeopleList();
+  function removePerson(name, btn) {
+    people.splice(people.indexOf(name), 1);
+    saveToLocalStorage();
+    btn.parentElement.remove();
+    updateDropdowns();
     updateBill();
   }
 
-  // Update the list of people displayed
-  function updatePeopleList() {
-    let peopleList = document.getElementById("peopleList");
-    peopleList.innerHTML = '';  // Clear previous list
-    people.forEach(person => {
-      let li = document.createElement("li");
-      li.innerText = person + ' ';
-      let removeButton = document.createElement("button");
-      removeButton.innerText = "Remove";
-      removeButton.onclick = () => removePerson(person);
-      li.appendChild(removeButton);
-      peopleList.appendChild(li);
+  function updateDropdowns() {
+    const ids = ["dishPerson", "miscPerson"];
+    ids.forEach(id => {
+      const select = document.getElementById(id);
+      select.innerHTML = people.map(p => `<option value="${p}">${p}</option>`).join("");
     });
   }
 
-  // Function to add dish and calculate total
-  function addDish() {
-    let dishName = document.getElementById("dishName").value;
-    let dishPrice = parseFloat(document.getElementById("dishPrice").value);
-    
-    if (dishName && !isNaN(dishPrice) && dishPrice > 0) {
-      totalDishes += dishPrice;
-      updateBill();
-      document.getElementById("dishName").value = '';
-      document.getElementById("dishPrice").value = '';
+  function addItem(type) {
+    const desc = document.getElementById(`${type}Desc`).value.trim();
+    const amt = parseFloat(document.getElementById(`${type}Amount`).value);
+    const person = document.getElementById(`${type}Person`).value;
+    if (!desc || isNaN(amt) || !person) return;
+
+    let finalAmount = amt;
+    let gst = 0, serviceCharge = 0, additionalCharge = 0;
+
+    if (document.getElementById(`${type}GST`).checked) {
+      gst = amt * 0.09;
+      finalAmount += gst;
     }
-  }
-
-  // Function to add miscellaneous item and calculate total
-  function addMisc() {
-    let miscName = document.getElementById("miscName").value;
-    let miscPrice = parseFloat(document.getElementById("miscPrice").value);
-    
-    if (miscName && !isNaN(miscPrice) && miscPrice > 0) {
-      totalMiscellaneous += miscPrice;
-      updateBill();
-      document.getElementById("miscName").value = '';
-      document.getElementById("miscPrice").value = '';
+    if (document.getElementById(`${type}Service`).checked) {
+      serviceCharge = amt * 0.10;
+      finalAmount += serviceCharge;
     }
-  }
+    if (document.getElementById(`${type}AdditionalToggle`).checked) {
+      additionalCharge = parseFloat(document.getElementById(`${type}Additional`).value);
+      if (!isNaN(additionalCharge)) finalAmount += amt * (additionalCharge / 100);
+    }
 
-  // Toggle GST for dishes
-  function toggleGSTDishes() {
-    gstDishes = document.getElementById("gstDishes").checked;
+    finalAmount = parseFloat(finalAmount.toFixed(2));
+    items.push({ desc, amt, finalAmount, person, gst, serviceCharge, additionalCharge, type });
+    saveToLocalStorage();
+
+    document.getElementById(`${type}Desc`).value = "";
+    document.getElementById(`${type}Amount`).value = "";
+
     updateBill();
   }
 
-  // Toggle Service Charge for dishes
-  function toggleServiceDishes() {
-    serviceDishes = document.getElementById("serviceDishes").checked;
-    updateBill();
-  }
-
-  // Toggle GST for miscellaneous
-  function toggleGSTMisc() {
-    gstMisc = document.getElementById("gstMisc").checked;
-    updateBill();
-  }
-
-  // Toggle Service Charge for miscellaneous
-  function toggleServiceMisc() {
-    serviceMisc = document.getElementById("serviceMisc").checked;
-    updateBill();
-  }
-
-  // Update the bill and total calculations
   function updateBill() {
-    let gstDishesAmount = 0;
-    let serviceDishesAmount = 0;
-    let gstMiscAmount = 0;
-    let serviceMiscAmount = 0;
+    const breakdown = document.getElementById("personBreakdowns");
+    breakdown.innerHTML = "";
+    let totalDishes = 0, totalMisc = 0, grandBefore = 0, grandAfter = 0;
 
-    let totalWithGSTServiceDishes = totalDishes;
-    let totalWithGSTServiceMisc = totalMiscellaneous;
+    const personTotals = {};
 
-    // Apply GST and Service Charge for Dishes
-    if (gstDishes) {
-      gstDishesAmount = totalDishes * 0.09; // 9% GST
-      totalWithGSTServiceDishes += gstDishesAmount;
-    }
-    if (serviceDishes) {
-      serviceDishesAmount = totalDishes * 0.10; // 10% Service Charge
-      totalWithGSTServiceDishes += serviceDishesAmount;
-    }
+    people.forEach(p => {
+      personTotals[p] = { dishes: [], misc: [], totalBefore: 0, totalAfter: 0 };
+    });
 
-    // Apply GST and Service Charge for Miscellaneous
-    if (gstMisc) {
-      gstMiscAmount = totalMiscellaneous * 0.09; // 9% GST
-      totalWithGSTServiceMisc += gstMiscAmount;
-    }
-    if (serviceMisc) {
-      serviceMiscAmount = totalMiscellaneous * 0.10; // 10% Service Charge
-      totalWithGSTServiceMisc += serviceMiscAmount;
-    }
+    items.forEach(i => {
+      const pt = personTotals[i.person];
+      if (i.type === "dish") {
+        pt.dishes.push(i);
+        totalDishes += i.finalAmount;
+      } else {
+        pt.misc.push(i);
+        totalMisc += i.finalAmount;
+      }
+      pt.totalBefore += i.amt;
+      pt.totalAfter += i.finalAmount;
+    });
 
-    // Calculate Grand Total
-    let grandTotal = totalWithGSTServiceDishes + totalWithGSTServiceMisc;
+    grandBefore = items.reduce((s, i) => s + i.amt, 0);
+    grandAfter = items.reduce((s, i) => s + i.finalAmount, 0);
 
-    // Calculate Amount per Person if there are people
-    let amountPerPerson = people.length > 0 ? (grandTotal / people.length).toFixed(2) : 0.00;
+    document.getElementById("totalDishes").textContent = `$${totalDishes.toFixed(2)}`;
+    document.getElementById("totalMiscellaneous").textContent = `$${totalMisc.toFixed(2)}`;
+    document.getElementById("grandTotal").textContent =
+      `Grand Total Before Charges: $${grandBefore.toFixed(2)} | After Charges: $${grandAfter.toFixed(2)}`;
+    document.getElementById("totalsTable").style.display = "block";
 
-    // Update the displayed totals
-    document.getElementById("totalDishesPrice").innerText = totalWithGSTServiceDishes.toFixed(2);
-    document.getElementById("totalMiscPrice").innerText = totalWithGSTServiceMisc.toFixed(2);
-    document.getElementById("grandTotal").innerText = grandTotal.toFixed(2);
-    document.getElementById("amountPerPerson").innerText = amountPerPerson;
+    people.forEach(p => {
+      const pt = personTotals[p];
+      let html = `<h3>${p}'s Itemized Bill</h3><table><thead><tr><th>Description</th><th>Amount Before</th><th>Amount After</th></tr></thead><tbody>`;
 
-    // Update Bill Table
-    let table = document.getElementById("billTable").getElementsByTagName('tbody')[0];
-    table.innerHTML = '';  // Clear previous rows
+      [...pt.dishes, ...pt.misc].forEach(i => {
+        html += `<tr><td>${i.desc}</td><td>$${i.amt.toFixed(2)}</td><td>$${i.finalAmount.toFixed(2)}</td></tr>`;
+      });
 
-    // Add Dishes rows
-    let row = table.insertRow();
-    row.insertCell(0).innerText = 'Dishes Total';
-    row.insertCell(1).innerText = totalDishes.toFixed(2);
+      html += `</tbody></table>`;
+      html += `<table><tbody>
+        <tr><td><strong>Total Before Charges</strong></td><td><strong>$${pt.totalBefore.toFixed(2)}</strong></td></tr>
+        <tr><td><strong>Total After Charges</strong></td><td><strong>$${pt.totalAfter.toFixed(2)}</strong></td></tr>
+      </tbody></table><br>`;
+      breakdown.innerHTML += html;
+    });
+  }
 
-    if (gstDishes) {
-      row = table.insertRow();
-      row.insertCell(0).innerText = 'GST (9%) on Dishes';
-      row.insertCell(1).innerText = gstDishesAmount.toFixed(2);
-    }
-    if (serviceDishes) {
-      row = table.insertRow();
-      row.insertCell(0).innerText = 'Service Charge (10%) on Dishes';
-      row.insertCell(1).innerText = serviceDishesAmount.toFixed(2);
-    }
+  function resetPage() {
+    localStorage.clear();
+    location.reload();
+  }
 
-    // Add Miscellaneous rows
-    row = table.insertRow();
-    row.insertCell(0).innerText = 'Miscellaneous Total';
-    row.insertCell(1).innerText = totalMiscellaneous.toFixed(2);
+  function downloadPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
 
-    if (gstMisc) {
-      row = table.insertRow();
-      row.insertCell(0).innerText = 'GST (9%) on Miscellaneous';
-      row.insertCell(1).innerText = gstMiscAmount.toFixed(2);
-    }
-    if (serviceMisc) {
-      row = table.insertRow();
-      row.insertCell(0).innerText = 'Service Charge (10%) on Miscellaneous';
-      row.insertCell(1).innerText = serviceMiscAmount.toFixed(2);
-    }
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(14);
+    let y = 10;
+    doc.text("Bill Splitter Summary", 20, y);
+    y += 10;
+
+    people.forEach(p => {
+      const personItems = items.filter(i => i.person === p);
+      if (personItems.length === 0) return;
+
+      const totalBefore = personItems.reduce((s, i) => s + i.amt, 0);
+      const totalAfter = personItems.reduce((s, i) => s + i.finalAmount, 0);
+
+      doc.text(`${p}'s Itemized Bill`, 20, y);
+      y += 5;
+
+      const tableData = personItems.map(i => [
+        i.desc,
+        `$${i.amt.toFixed(2)}`,
+        `$${i.finalAmount.toFixed(2)}`
+      ]);
+
+      doc.autoTable({
+        head: [['Description', 'Amount Before', 'Amount After']],
+        body: tableData,
+        startY: y,
+        theme: 'grid'
+      });
+
+      y = doc.lastAutoTable.finalY + 2;
+
+      doc.autoTable({
+        body: [
+          ['Total Before Charges', `$${totalBefore.toFixed(2)}`],
+          ['Total After Charges', `$${totalAfter.toFixed(2)}`]
+        ],
+        startY: y,
+        theme: 'plain',
+        styles: { fontStyle: 'bold' }
+      });
+
+      y = doc.lastAutoTable.finalY + 10;
+    });
+
+    const totalDishes = items.filter(i => i.type === "dish").reduce((s, i) => s + i.finalAmount, 0);
+    const totalMisc = items.filter(i => i.type === "misc").reduce((s, i) => s + i.finalAmount, 0);
+    const grandBefore = items.reduce((s, i) => s + i.amt, 0);
+    const grandAfter = items.reduce((s, i) => s + i.finalAmount, 0);
+
+    doc.autoTable({
+      head: [['Total Dishes', 'Total Miscellaneous', 'Grand Total']],
+      body: [[
+        `$${totalDishes.toFixed(2)}`,
+        `$${totalMisc.toFixed(2)}`,
+        `$${grandAfter.toFixed(2)}`
+      ]],
+      startY: y,
+      styles: { fontStyle: 'bold' }
+    });
+
+    doc.save("Total Bill.pdf");
   }
 </script>
+</body>
 </html>
