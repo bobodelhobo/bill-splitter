@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Food Bill Splitter</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: auto; padding: 20px; }
+    .section { margin-bottom: 20px; }
+    input, select, button { margin: 5px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Food Bill Splitter</h1>
+
+  <div class="section">
+    <h2>People</h2>
+    <input id="personName" placeholder="Enter name" />
+    <button onclick="addPerson()">Add Person</button>
+    <ul id="peopleList"></ul>
+  </div>
+
+  <div class="section">
+    <h2>Dishes</h2>
+    <input id="dishName" placeholder="Dish name" />
+    <input id="dishPrice" type="number" step="0.01" placeholder="Price" />
+    <select id="personSelect"></select>
+    <button onclick="addDish()">Add Dish</button>
+
+    <table>
+      <thead>
+        <tr><th>Dish</th><th>Price</th><th>Person</th></tr>
+      </thead>
+      <tbody id="dishTable"></tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Options</h2>
+    <label><input type="checkbox" id="serviceCharge"> Add 10% Service Charge</label><br>
+    <label><input type="checkbox" id="gst"> Add 9% GST</label>
+  </div>
+
+  <div class="section">
+    <h2>Miscellaneous (Not Split)</h2>
+    <input id="miscItem" placeholder="Misc item name" />
+    <input id="miscPrice" type="number" step="0.01" placeholder="Price" />
+    <button onclick="addMisc()">Add Misc</button>
+
+    <ul id="miscList"></ul>
+    <p>Total Misc: $<span id="miscTotal">0.00</span></p>
+  </div>
+
+  <div class="section">
+    <h2>Totals</h2>
+    <div id="totals"></div>
+  </div>
+
+  <script>
+    const people = [];
+    const dishes = [];
+    const miscItems = [];
+
+    function updatePersonSelect() {
+      const select = document.getElementById('personSelect');
+      select.innerHTML = '';
+      people.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = opt.text = p;
+        select.add(opt);
+      });
+    }
+
+    function addPerson() {
+      const name = document.getElementById('personName').value.trim();
+      if (name && !people.includes(name)) {
+        people.push(name);
+        document.getElementById('peopleList').innerHTML += `<li>${name}</li>`;
+        updatePersonSelect();
+      }
+      document.getElementById('personName').value = '';
+    }
+
+    function addDish() {
+      const name = document.getElementById('dishName').value.trim();
+      const price = parseFloat(document.getElementById('dishPrice').value);
+      const person = document.getElementById('personSelect').value;
+
+      if (name && !isNaN(price) && person) {
+        dishes.push({ name, price, person });
+        const row = `<tr><td>${name}</td><td>$${price.toFixed(2)}</td><td>${person}</td></tr>`;
+        document.getElementById('dishTable').innerHTML += row;
+        updateTotals();
+      }
+
+      document.getElementById('dishName').value = '';
+      document.getElementById('dishPrice').value = '';
+    }
+
+    function addMisc() {
+      const name = document.getElementById('miscItem').value.trim();
+      const price = parseFloat(document.getElementById('miscPrice').value);
+
+      if (name && !isNaN(price)) {
+        miscItems.push({ name, price });
+        document.getElementById('miscList').innerHTML += `<li>${name} - $${price.toFixed(2)}</li>`;
+        updateMiscTotal();
+      }
+
+      document.getElementById('miscItem').value = '';
+      document.getElementById('miscPrice').value = '';
+    }
+
+    function updateMiscTotal() {
+      const total = miscItems.reduce((sum, item) => sum + item.price, 0);
+      document.getElementById('miscTotal').innerText = total.toFixed(2);
+    }
+
+    function updateTotals() {
+      const perPerson = {};
+      people.forEach(p => perPerson[p] = 0);
+
+      dishes.forEach(d => perPerson[d.person] += d.price);
+
+      let total = dishes.reduce((sum, d) => sum + d.price, 0);
+      if (document.getElementById('serviceCharge').checked) total *= 1.10;
+      if (document.getElementById('gst').checked) total *= 1.09;
+
+      let output = '<ul>';
+      people.forEach(p => {
+        let share = perPerson[p];
+        if (document.getElementById('serviceCharge').checked) share *= 1.10;
+        if (document.getElementById('gst').checked) share *= 1.09;
+        output += `<li>${p}: $${share.toFixed(2)}</li>`;
+      });
+      output += `</ul><p><strong>Total Bill (Food Only): $${total.toFixed(2)}</strong></p>`;
+
+      document.getElementById('totals').innerHTML = output;
+    }
+
+    document.getElementById('serviceCharge').addEventListener('change', updateTotals);
+    document.getElementById('gst').addEventListener('change', updateTotals);
+  </script>
+</body>
+</html>
